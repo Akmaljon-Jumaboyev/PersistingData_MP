@@ -1,0 +1,342 @@
+//TASK 1
+
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Crash Course Demo',
+      home: const HomePage(),
+    );
+  }
+}
+
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  int _counter = 0;
+
+  void _increment() => setState(() => _counter++);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Flutter Crash Course')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('You pressed the button this many times:'),
+            Text('$_counter', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 12),
+            ElevatedButton(onPressed: _increment, child: const Text('Increment')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+//_______________________________________________________________________________________________________
+//Task 2
+
+import 'dart:html' as html;
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Persistent Counter (localStorage)',
+      theme: ThemeData(useMaterial3: true),
+      home: const CounterScreen(),
+    );
+  }
+}
+
+class CounterScreen extends StatefulWidget {
+  const CounterScreen({super.key});
+  @override
+  State<CounterScreen> createState() => _CounterScreenState();
+}
+
+class _CounterScreenState extends State<CounterScreen> {
+  static const _storageKey = 'counter_value';
+  int _counter = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCounter();
+  }
+
+  
+  Future<void> _loadCounter() async {
+    setState(() => _loading = true);
+    try {
+      final raw = html.window.localStorage[_storageKey];
+      if (raw != null) {
+        final parsed = int.tryParse(raw);
+        _counter = parsed ?? 0;
+      } else {
+        _counter = 0;
+      }
+    } catch (e) {
+    
+      _counter = 0;
+     
+      print('localStorage load failed: $e');
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  
+  Future<void> _saveCounter() async {
+    try {
+      html.window.localStorage[_storageKey] = '$_counter';
+    } catch (e) {
+      
+      print('localStorage save failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Warning: failed to persist data.')),
+        );
+      }
+    }
+  }
+
+  void _increment() {
+    setState(() => _counter++);
+    _saveCounter();
+  }
+
+  void _decrement() {
+    setState(() => _counter--);
+    _saveCounter();
+  }
+
+  void _reset() {
+    setState(() => _counter = 0);
+    _saveCounter();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Persistent Counter (DartPad/web)')),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('You have pushed the button this many times:'),
+                  const SizedBox(height: 8),
+                  Text('$_counter', style: Theme.of(context).textTheme.headlineMedium),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FloatingActionButton(
+                        heroTag: 'decrement',
+                        onPressed: _decrement,
+                        child: const Icon(Icons.remove),
+                      ),
+                      const SizedBox(width: 16),
+                      FloatingActionButton(
+                        heroTag: 'increment',
+                        onPressed: _increment,
+                        child: const Icon(Icons.add),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(onPressed: _reset, child: const Text('Reset')),
+                ],
+              ),
+            ),
+    );
+  }
+}
+//____________________________________________________________________________________________________________________________________
+// TASK 3
+import 'dart:html' as html;
+import 'package:flutter/material.dart';
+
+void main() {
+  runApp(const CombinedApp());
+}
+
+class CombinedApp extends StatefulWidget {
+  const CombinedApp({super.key});
+  @override
+  State<CombinedApp> createState() => _CombinedAppState();
+}
+
+class _CombinedAppState extends State<CombinedApp> {
+  static const _counterKey = 'counter_value';
+  static const _themeKey = 'isDarkMode';
+
+  int _counter = 0;
+  bool _isDarkMode = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAll();
+  }
+
+  Future<void> _loadAll() async {
+    setState(() => _loading = true);
+    try {
+      
+      final rawCounter = html.window.localStorage[_counterKey];
+      if (rawCounter != null) {
+        _counter = int.tryParse(rawCounter) ?? 0;
+      } else {
+        _counter = 0;
+      }
+  
+      final rawTheme = html.window.localStorage[_themeKey];
+      _isDarkMode = (rawTheme == 'true');
+    } catch (e) {
+
+      print('localStorage load failed: $e');
+      _counter = 0;
+      _isDarkMode = false;
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _saveCounter() async {
+    try {
+      html.window.localStorage[_counterKey] = '$_counter';
+    } catch (e) {
+      
+      print('localStorage saveCounter failed: $e');
+    }
+  }
+
+  Future<void> _saveTheme() async {
+    try {
+      html.window.localStorage[_themeKey] = _isDarkMode ? 'true' : 'false';
+    } catch (e) {
+
+      print('localStorage saveTheme failed: $e');
+    }
+  }
+
+  void _increment() {
+    setState(() => _counter++);
+    _saveCounter();
+  }
+
+  void _decrement() {
+    setState(() => _counter--);
+    _saveCounter();
+  }
+
+  void _reset() {
+    setState(() => _counter = 0);
+    _saveCounter();
+  }
+
+  void _toggleTheme(bool v) {
+    setState(() => _isDarkMode = v);
+    _saveTheme();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      themeMode: _isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      theme: ThemeData.light(useMaterial3: true),
+      darkTheme: ThemeData.dark(useMaterial3: true),
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Counter + Dark Mode (DartPad)'),
+          centerTitle: true,
+          actions: [
+
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: Center(child: Text(_isDarkMode ? 'Dark' : 'Light')),
+            ),
+          ],
+        ),
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            SwitchListTile(
+              title: const Text('Enable Dark Mode'),
+              value: _isDarkMode,
+              onChanged: _toggleTheme,
+            ),
+            const SizedBox(height: 20),
+            const Text('You have pushed the button this many times:'),
+            const SizedBox(height: 8),
+            Text('$_counter', style: Theme.of(context).textTheme.headlineMedium),
+            const SizedBox(height: 20),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              FloatingActionButton(
+                heroTag: 'dec',
+                onPressed: _decrement,
+                child: const Icon(Icons.remove),
+              ),
+              const SizedBox(width: 16),
+              FloatingActionButton(
+                heroTag: 'inc',
+                onPressed: _increment,
+                child: const Icon(Icons.add),
+              ),
+            ]),
+
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
