@@ -1,0 +1,299 @@
+//TASK 9
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+
+void main() {
+  runApp(const FileStorageApp());
+}
+
+class FileStorageApp extends StatefulWidget {
+  const FileStorageApp({super.key});
+  @override
+  State<FileStorageApp> createState() => _FileStorageAppState();
+}
+
+class _FileStorageAppState extends State<FileStorageApp> {
+  final textController = TextEditingController();
+  String fileContent = '';
+
+  Future<File> getFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/user_data.txt');
+  }
+
+  Future<void> writeFile(String text) async {
+    final file = await getFile();
+    await file.writeAsString(text);
+  }
+
+  Future<void> readFile() async {
+    try {
+      final file = await getFile();
+      final text = await file.readAsString();
+      setState(() => fileContent = text);
+    } catch (e) {
+      setState(() => fileContent = 'No file found');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('File Storage Demo')),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(controller: textController, decoration: const InputDecoration(labelText: 'Enter text')),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(onPressed: () async {
+                    await writeFile(textController.text);
+                    textController.clear();
+                  }, child: const Text('Write')),
+                  ElevatedButton(onPressed: readFile, child: const Text('Read')),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Text('File Content:', style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(fileContent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+//TASK 10
+//__________________________________________________________________________________________________
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+void main() {
+  runApp(const HybridApp());
+}
+
+class HybridApp extends StatefulWidget {
+  const HybridApp({super.key});
+  @override
+  State<HybridApp> createState() => _HybridAppState();
+}
+
+class _HybridAppState extends State<HybridApp> {
+  bool darkMode = false;
+  double fontSize = 16;
+  Database? db;
+  List<Map<String, Object?>> notes = [];
+
+  final titleCtrl = TextEditingController();
+  final contentCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    loadSettings();
+    openDB();
+  }
+
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      darkMode = prefs.getBool('darkMode') ?? false;
+      fontSize = prefs.getDouble('fontSize') ?? 16;
+    });
+  }
+
+  Future<void> saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('darkMode', darkMode);
+    await prefs.setDouble('fontSize', fontSize);
+  }
+
+  Future<void> openDB() async {
+    db = await openDatabase(
+      join(await getDatabasesPath(), 'hybrid_notes.db'),
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('CREATE TABLE notes(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT)');
+      },
+    );
+    loadNotes();
+  }
+
+  Future<void> loadNotes() async {
+    final data = await db?.query('notes', orderBy: 'id DESC');
+    setState(() => notes = List<Map<String, Object?>>.from(data ?? []));
+  }
+
+  Future<void> addNote() async {
+    await db?.insert('notes', {'title': 'New Note', 'content': 'Tap to edit'});
+    loadNotes();
+  }
+
+  Future<void> updateNote(int id, String title, String content) async {
+    await db?.update('notes', {'title': title, 'content': content}, where: 'id = ?', whereArgs: [id]);
+    loadNotes();
+  }
+
+  Future<void> deleteNote(int id) async {
+    await db?.delete('notes', where: 'id = ?', whereArgs: [id]);
+    loadNotes();
+  }
+
+  void openSettings() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Settings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SwitchListTile(
+              title: const Text('Dark Mode'),
+              value: darkMode,
+              onChanged: (v) => setState(() => darkMode = v),
+            ),
+            Row(
+              children: [
+                const Text('Font Size'),
+                Expanded(
+                  child: Slider(
+                    min: 12,
+                    max: 24,
+                    value: fontSize,
+                    onChanged: (v) => setState(() => fontSize = v),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              saveSettings();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void openNoteEditor(Map<String, Object?>? note) {
+    if (note == null) {
+      titleCtrl.clear();
+      contentCtrl.clear();
+    } else {
+      titleCtrl.text = note['title'] as String? ?? '';
+      contentCtrl.text = note['content'] as String? ?? '';
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(note == null ? 'Add Note' : 'Edit Note'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+            TextField(controller: contentCtrl, decoration: const InputDecoration(labelText: 'Content')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              if (note == null) {
+                await db?.insert('notes', {'title': titleCtrl.text, 'content': contentCtrl.text});
+              } else {
+                await updateNote(note['id'] as int, titleCtrl.text, contentCtrl.text);
+              }
+              Navigator.pop(ctx);
+              loadNotes();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeData(
+      brightness: darkMode ? Brightness.dark : Brightness.light,
+      textTheme: TextTheme(bodyMedium: TextStyle(fontSize: fontSize)),
+    );
+    return MaterialApp(
+      theme: theme,
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Hybrid Storage App'),
+          actions: [
+            IconButton(onPressed: openSettings, icon: const Icon(Icons.settings)),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => openNoteEditor(null),
+          child: const Icon(Icons.add),
+        ),
+        body: ListView.builder(
+          itemCount: notes.length,
+          itemBuilder: (context, index) {
+            final note = notes[index];
+            return Card(
+              child: ListTile(
+                title: Text(note['title'] as String? ?? ''),
+                subtitle: Text(note['content'] as String? ?? ''),
+                onTap: () => openNoteEditor(note),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () => deleteNote(note['id'] as int),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
