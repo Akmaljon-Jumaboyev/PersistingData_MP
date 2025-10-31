@@ -1,0 +1,356 @@
+//TASK 7
+import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+void main() {
+  runApp(const NotesApp());
+}
+
+class NotesApp extends StatefulWidget {
+  const NotesApp({super.key});
+  @override
+  State<NotesApp> createState() => _NotesAppState();
+}
+
+class _NotesAppState extends State<NotesApp> {
+  Database? db;
+  List<Map<String, Object?>> notes = [];
+  final titleCtrl = TextEditingController();
+  final contentCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    openDB();
+  }
+
+  Future<void> openDB() async {
+    db = await openDatabase(
+      join(await getDatabasesPath(), 'notes.db'),
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute('CREATE TABLE notes(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT)');
+      },
+    );
+    loadNotes();
+  }
+
+  Future<void> loadNotes() async {
+    final data = await db?.query('notes', orderBy: 'id DESC');
+    setState(() {
+      notes = List<Map<String, Object?>>.from(data ?? []);
+    });
+  }
+
+  Future<void> addNote() async {
+    titleCtrl.clear();
+    contentCtrl.clear();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Note'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+            TextField(controller: contentCtrl, decoration: const InputDecoration(labelText: 'Content')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              await db?.insert('notes', {'title': titleCtrl.text, 'content': contentCtrl.text});
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (saved == true) loadNotes();
+  }
+
+  Future<void> editNote(Map<String, Object?> note) async {
+    final id = note['id'] as int;
+    titleCtrl.text = note['title'] as String? ?? '';
+    contentCtrl.text = note['content'] as String? ?? '';
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Note'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+            TextField(controller: contentCtrl, decoration: const InputDecoration(labelText: 'Content')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              await db?.update('notes', {'title': titleCtrl.text, 'content': contentCtrl.text}, where: 'id = ?', whereArgs: [id]);
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+    if (updated == true) loadNotes();
+  }
+
+  Future<void> deleteNote(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note?'),
+        content: const Text('Are you sure you want to delete this note?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await db?.delete('notes', where: 'id = ?', whereArgs: [id]);
+      loadNotes();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Full CRUD Notes App')),
+        floatingActionButton: FloatingActionButton(
+          onPressed: addNote,
+          child: const Icon(Icons.add),
+        ),
+        body: RefreshIndicator(
+          onRefresh: loadNotes,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(8),
+            itemCount: notes.length,
+            itemBuilder: (context, index) {
+              final note = notes[index];
+              final id = note['id'] as int?;
+              final title = note['title'] as String? ?? '';
+              final content = note['content'] as String? ?? '';
+              return Card(
+                child: ListTile(
+                  title: Text(title),
+                  subtitle: Text(content),
+                  onTap: () => editNote(note),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete),
+                    onPressed: id == null ? null : () => deleteNote(id),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+//TASK 8
+//_________________________________________________________________________________________________________
+import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+
+void main() {
+  runApp(const NotesApp());
+}
+
+class NotesApp extends StatefulWidget {
+  const NotesApp({super.key});
+  @override
+  State<NotesApp> createState() => _NotesAppState();
+}
+
+class _NotesAppState extends State<NotesApp> {
+  Database? db;
+  List<Map<String, Object?>> notes = [];
+
+  @override
+  void initState() {
+    super.initState();
+    openDB();
+  }
+
+  Future<void> openDB() async {
+    db = await openDatabase(
+      join(await getDatabasesPath(), 'notes.db'),
+      version: 1,
+      onCreate: (db, version) async {
+        await db.execute(
+          'CREATE TABLE notes(id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT)',
+        );
+      },
+    );
+    loadNotes();
+  }
+
+  Future<void> loadNotes() async {
+    final data = await db?.query('notes', orderBy: 'id DESC');
+    setState(() => notes = List<Map<String, Object?>>.from(data ?? []));
+  }
+
+  Future<void> addNote() async {
+    await db?.insert('notes', {'title': 'New Note', 'content': 'Tap to edit'});
+    loadNotes();
+  }
+
+  Future<void> updateNote(int id, String title, String content) async {
+    await db?.update('notes', {'title': title, 'content': content}, where: 'id = ?', whereArgs: [id]);
+    loadNotes();
+  }
+
+  Future<void> deleteNote(int id) async {
+    await db?.delete('notes', where: 'id = ?', whereArgs: [id]);
+    loadNotes();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      routes: {
+        '/detail': (context) => const DetailScreen(),
+      },
+      home: Scaffold(
+        appBar: AppBar(title: const Text('Notes')),
+        floatingActionButton: FloatingActionButton(
+          onPressed: addNote,
+          child: const Icon(Icons.add),
+        ),
+        body: ListView.builder(
+          itemCount: notes.length,
+          itemBuilder: (context, index) {
+            final note = notes[index];
+            return Card(
+              child: ListTile(
+                title: Text(note['title'] as String? ?? ''),
+                subtitle: Text(note['content'] as String? ?? ''),
+                onTap: () async {
+                  final updated = await Navigator.pushNamed(
+                    context,
+                    '/detail',
+                    arguments: {
+                      'id': note['id'],
+                      'title': note['title'],
+                      'content': note['content']
+                    },
+                  );
+                  if (updated == true) loadNotes();
+                },
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: () => deleteNote(note['id'] as int),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class DetailScreen extends StatefulWidget {
+  const DetailScreen({super.key});
+  @override
+  State<DetailScreen> createState() => _DetailScreenState();
+}
+
+class _DetailScreenState extends State<DetailScreen> {
+  late TextEditingController titleCtrl;
+  late TextEditingController contentCtrl;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)!.settings.arguments as Map<String, Object?>;
+    titleCtrl = TextEditingController(text: args['title'] as String? ?? '');
+    contentCtrl = TextEditingController(text: args['content'] as String? ?? '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)!.settings.arguments as Map<String, Object?>;
+    final id = args['id'] as int;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Note Detail'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: () async {
+              final db = await openDatabase(join(await getDatabasesPath(), 'notes.db'));
+              await db.update(
+                'notes',
+                {'title': titleCtrl.text, 'content': contentCtrl.text},
+                where: 'id = ?',
+                whereArgs: [id],
+              );
+              Navigator.pop(context, true);
+            },
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
+            const SizedBox(height: 12),
+            TextField(
+              controller: contentCtrl,
+              decoration: const InputDecoration(labelText: 'Content'),
+              maxLines: 5,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
